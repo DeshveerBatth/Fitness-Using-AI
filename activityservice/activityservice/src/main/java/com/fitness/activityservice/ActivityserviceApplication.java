@@ -1,12 +1,14 @@
-  package com.fitness.activityservice;
+package com.fitness.activityservice;
 
-  import org.springframework.boot.SpringApplication;
-  import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.data.mongodb.config.EnableMongoAuditing;
 
-  @SpringBootApplication
-  public  class ActivityserviceApplication{
+@SpringBootApplication
+@EnableMongoAuditing // Add this for @CreatedDate and @LastModifiedDate
+public class ActivityserviceApplication {
 
-      public static void main(String[] args){
-          SpringApplication.run(ActivityserviceApplication.class);
-      }
-  }
+    public static void main(String[] args) {
+        SpringApplication.run(ActivityserviceApplication.class, args);
+    }
+}

@@ -31,5 +31,6 @@ public enum ActivityType {
     CRICKET,
     GOLF,
     TABLE_TENNIS,
+    PARAGLIDING ,
     OTHER;
 }
