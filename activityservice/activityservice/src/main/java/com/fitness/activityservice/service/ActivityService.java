@@ -5,18 +5,19 @@ import com.fitness.activityservice.dto.ActivityRequest;
 import com.fitness.activityservice.dto.ActivityResponse;
 import com.fitness.activityservice.model.Activity;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j // Add this for logging
 public class ActivityService {
 
     private final ActivityRepository activityRepository;
 
     public ActivityResponse trackActivity(ActivityRequest request){
-        log.info("Received request: {}", request); // Add logging
+        System.out.println("Received request: " + request); // Simple logging
 
         Activity activity = Activity.builder()
                 .userId(request.getUserId())
@@ -27,10 +28,10 @@ public class ActivityService {
                 .additionalMatrices(request.getAdditionalMetrics())
                 .build();
 
-        log.info("Built activity: {}", activity); // Add logging
+        System.out.println("Built activity: " + activity); // Simple logging
 
         Activity savedActivity = activityRepository.save(activity);
-        log.info("Saved activity with ID: {}", savedActivity.getId()); // Add logging
+        System.out.println("Saved activity with ID: " + savedActivity.getId()); // Simple logging
 
         return mapToResponse(savedActivity);
     }
@@ -48,4 +49,12 @@ public class ActivityService {
         response.setUpdatedAt(activity.getUpdatedAt());
         return response;
     }
+
+    public List<ActivityResponse> getUserActivities(String userId) {
+        List<Activity> activities = activityRepository.findByUserId(userId);
+        return  activities.stream()
+                .map(this:: mapToResponse)
+                .collect(Collectors.toList());
+    }
+
 }
