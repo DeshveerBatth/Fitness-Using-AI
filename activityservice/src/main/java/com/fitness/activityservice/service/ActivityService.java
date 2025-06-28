@@ -5,6 +5,7 @@ import com.fitness.activityservice.dto.ActivityRequest;
 import com.fitness.activityservice.dto.ActivityResponse;
 import com.fitness.activityservice.model.Activity;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -12,12 +13,33 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ActivityService {
 
     private final ActivityRepository activityRepository;
+    private final UserValidationService userValidationService;
 
     public ActivityResponse trackActivity(ActivityRequest request){
-        System.out.println("Received request: " + request); // Simple logging
+
+        log.error("🔥🔥🔥 ACTIVITY SERVICE - trackActivity METHOD CALLED 🔥🔥🔥");
+        log.error("🔥🔥🔥 USER ID: {} 🔥🔥🔥", request.getUserId());
+
+        // Add explicit null check
+        if (userValidationService == null) {
+            log.error("🔥🔥🔥 USER VALIDATION SERVICE IS NULL! 🔥🔥🔥");
+            throw new RuntimeException("UserValidationService is null!");
+        }
+
+        log.error("🔥🔥🔥 CALLING validateUser... 🔥🔥🔥");
+        boolean isValidUser = userValidationService.validateUser(request.getUserId());
+        log.error("🔥🔥🔥 validateUser RETURNED: {} 🔥🔥🔥", isValidUser);
+
+        if(!isValidUser){
+            log.error("🔥🔥🔥 THROWING RUNTIME EXCEPTION! 🔥🔥🔥");
+            throw new RuntimeException("Invalid User: " + request.getUserId());
+        }
+
+        log.error("🔥🔥🔥 VALIDATION PASSED - CREATING ACTIVITY 🔥🔥🔥");
 
         Activity activity = Activity.builder()
                 .userId(request.getUserId())
@@ -28,16 +50,15 @@ public class ActivityService {
                 .additionalMatrices(request.getAdditionalMetrics())
                 .build();
 
-        System.out.println("Built activity: " + activity); // Simple logging
-
         Activity savedActivity = activityRepository.save(activity);
-        System.out.println("Saved activity with ID: " + savedActivity.getId()); // Simple logging
+        log.error("🔥🔥🔥 ACTIVITY SAVED WITH ID: {} 🔥🔥🔥", savedActivity.getId());
 
         return mapToResponse(savedActivity);
     }
 
     private ActivityResponse mapToResponse(Activity activity){
         ActivityResponse response = new ActivityResponse();
+
         response.setId(activity.getId());
         response.setUserId(activity.getUserId());
         response.setType(activity.getType());
@@ -60,6 +81,6 @@ public class ActivityService {
     public ActivityResponse getActivityById(String activityId) {
         return activityRepository.findById(activityId)
                 .map(this:: mapToResponse)
-                .orElseThrow(()-> new RuntimeException("Activity not found wiht id: " + activityId));
+                .orElseThrow(()-> new RuntimeException("Activity not found with id: " + activityId));
     }
 }
