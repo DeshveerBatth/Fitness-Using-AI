@@ -11,9 +11,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    # Removed database-platform - Hibernate auto-detects PostgreSQL dialect
     show-sql: true
-    open-in-view: false  # Added for better performance
+    open-in-view: false
     properties:
       hibernate:
         format_sql: true
@@ -27,3 +26,7 @@ eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
+  instance:
+    hostname: localhost
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
