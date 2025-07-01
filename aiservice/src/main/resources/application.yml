@@ -18,3 +18,10 @@ logging:
   level:
     com.fitness.aiservice: DEBUG
 
+rabbitmq:
+  exchange:
+    name: fitness.exchange
+  queue:
+    name: activity.queue
+  routing:
+    name: activity.tracking
