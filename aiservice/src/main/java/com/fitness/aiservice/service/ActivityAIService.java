@@ -9,6 +9,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -18,9 +23,8 @@ public class ActivityAIService {
     private final GeminiService geminiService;
     private final ObjectMapper objectMapper;
 
-    // Add this method to your ActivityAIService class
-
-    public Mono<String> generateRecommendation(Activity activity) {
+    // Reactive method that returns Recommendation object
+    public Mono<Recommendation> generateRecommendation(Activity activity) {
         String prompt = createPromptForActivity(activity);
         log.info("Generated prompt for activity {}: {}", activity.getId(), prompt);
 
@@ -31,129 +35,233 @@ public class ActivityAIService {
                     String response = geminiService.getAnswer(prompt);
                     log.info("Received raw response from Gemini for activity {}", activity.getId());
 
-                    String parsedResponse = parseGeminiResponse(response);
-                    log.info("Parsed Gemini response for activity {}", activity.getId());
-
-                    String structuredResponse = createStructuredResponse(parsedResponse);
+                    Recommendation recommendation = processAiResponse(activity, response);
 
                     long endTime = System.currentTimeMillis();
                     log.info("Total recommendation generation time for activity {}: {} ms",
                             activity.getId(), (endTime - startTime));
-                    processAiResponce(activity, response);
-                    return structuredResponse;
+
+                    return recommendation;
                 })
-                .doOnSuccess(response -> log.info("Successfully generated recommendation for activity {}: {}",
-                        activity.getId(), response))
+                .doOnSuccess(recommendation -> log.info("Successfully generated recommendation for activity {}: {}",
+                        activity.getId(), recommendation.getRecommendation()))
                 .doOnError(error -> log.error("Error generating recommendation for activity {}: {}",
                         activity.getId(), error.getMessage(), error));
     }
 
-    private void processAiResponce(Activity activity, String aiResponce){
-        try{
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode rootNode = mapper.readTree(aiResponce);
+    // Synchronous method that returns Recommendation object
+    public Recommendation generateRecommendationSync(Activity activity) {
+        String prompt = createPromptForActivity(activity);
+        log.info("Generated prompt for activity {}: {}", activity.getId(), prompt);
 
-            JsonNode testNode = rootNode.path("candidates")
+        try {
+            String response = geminiService.getAnswer(prompt);
+            Recommendation recommendation = processAiResponse(activity, response);
+            log.info("Successfully generated recommendation for activity {}: {}",
+                    activity.getId(), recommendation.getRecommendation());
+            return recommendation;
+        } catch (Exception e) {
+            log.error("Error getting AI response for activity {}: {}", activity.getId(), e.getMessage());
+            return createDefaultRecommendation(activity);
+        }
+    }
+
+    // Method that returns structured JSON string (for API responses)
+    public Mono<String> generateRecommendationJson(Activity activity) {
+        return generateRecommendation(activity)
+                .map(this::convertRecommendationToJson)
+                .onErrorReturn(createErrorJson());
+    }
+
+    // Synchronous method that returns JSON string
+    public String generateRecommendationJsonSync(Activity activity) {
+        try {
+            Recommendation recommendation = generateRecommendationSync(activity);
+            return convertRecommendationToJson(recommendation);
+        } catch (Exception e) {
+            log.error("Error generating JSON recommendation for activity {}: {}", activity.getId(), e.getMessage());
+            return createErrorJson();
+        }
+    }
+
+    private Recommendation processAiResponse(Activity activity, String aiResponse) {
+        try {
+            JsonNode rootNode = objectMapper.readTree(aiResponse);
+
+            JsonNode textNode = rootNode.path("candidates")
                     .get(0)
-        } catch (Exception e){
-            e.printStackTrace();
+                    .path("content")
+                    .path("parts")
+                    .get(0)
+                    .path("text");
+
+            String jsonContent = textNode.asText()
+                    .replaceAll("```json\\n", "")
+                    .replaceAll("\\n```", "")
+                    .trim();
+
+            log.info("PARSED RESPONSE FROM AI: {}", jsonContent);
+
+            JsonNode analysisJson = objectMapper.readTree(jsonContent);
+            JsonNode analysisNode = analysisJson.path("analysis");
+
+            StringBuilder fullAnalysis = new StringBuilder();
+            addAnalysisSection(fullAnalysis, analysisNode, "overall", "Overall: ");
+            addAnalysisSection(fullAnalysis, analysisNode, "pace", "Pace: ");
+            addAnalysisSection(fullAnalysis, analysisNode, "heartRate", "Heart Rate: ");
+            addAnalysisSection(fullAnalysis, analysisNode, "caloriesBurned", "Calories: ");
+
+            List<String> improvements = extractImprovements(analysisJson.path("improvements"));
+            List<String> suggestions = extractSuggestions(analysisJson.path("suggestions"));
+            List<String> safety = extractSafetyGuidelines(analysisJson.path("safety"));
+
+            return Recommendation.builder()
+                    .activityId(activity.getId())
+                    .userId(activity.getUserId())
+                    .activityType(String.valueOf(activity.getType()))
+                    .recommendation(fullAnalysis.toString().trim())
+                    .improvements(improvements)
+                    .suggestions(suggestions)
+                    .safety(safety)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error processing AI response for activity {}: {}", activity.getId(), e.getMessage(), e);
+            return createDefaultRecommendation(activity);
+        }
+    }
+
+    private Recommendation createDefaultRecommendation(Activity activity) {
+        return Recommendation.builder()
+                .activityId(activity.getId())
+                .userId(activity.getUserId())
+                .activityType(String.valueOf(activity.getType()))
+                .recommendation("Unable to generate detailed analysis. Please try again later.")
+                .improvements(Collections.singletonList("Continue with your current routine"))
+                .suggestions(Collections.singletonList("Consider consulting a fitness professional"))
+                .safety(Arrays.asList(
+                        "Always warm up before exercise",
+                        "Stay hydrated",
+                        "Listen to your body and stop if you feel pain"
+                ))
+                .createdAt(LocalDateTime.now())
+                .build();
+    }
+
+    private String convertRecommendationToJson(Recommendation recommendation) {
+        try {
+            Map<String, Object> response = Map.of(
+                    "success", true,
+                    "activityId", recommendation.getActivityId(),
+                    "userId", recommendation.getUserId(),
+                    "activityType", recommendation.getActivityType().toString(),
+                    "analysis", recommendation.getRecommendation(),
+                    "improvements", recommendation.getImprovements(),
+                    "suggestions", recommendation.getSuggestions(),
+                    "safety", recommendation.getSafety(),
+                    "createdAt", recommendation.getCreatedAt().toString()
+            );
+            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(response);
+        } catch (Exception e) {
+            log.error("Error converting recommendation to JSON: {}", e.getMessage());
+            return createErrorJson();
+        }
+    }
+
+    private String createErrorJson() {
+        return "{\"success\":false,\"error\":\"Unable to generate recommendation\",\"fallbackMessage\":\"Continue your fitness journey! Focus on consistency and gradual improvement.\"}";
+    }
+
+    private List<String> extractSafetyGuidelines(JsonNode safetyNode) {
+        List<String> safety = new ArrayList<>();
+        if (safetyNode.isArray()) {
+            safetyNode.forEach(item -> safety.add(item.asText()));
+        }
+        return safety.isEmpty() ?
+                Arrays.asList("Follow general safety guidelines", "Stay hydrated", "Listen to your body") :
+                safety;
+    }
+
+    private List<String> extractSuggestions(JsonNode suggestionsNode) {
+        List<String> suggestions = new ArrayList<>();
+        if (suggestionsNode.isArray()) {
+            suggestionsNode.forEach(suggestion -> {
+                String workout = suggestion.path("workout").asText();
+                String description = suggestion.path("description").asText();
+                suggestions.add(String.format("%s: %s", workout, description));
+            });
+        }
+        return suggestions.isEmpty() ?
+                Collections.singletonList("No specific suggestions provided") :
+                suggestions;
+    }
+
+    private List<String> extractImprovements(JsonNode improvementsNode) {
+        List<String> improvements = new ArrayList<>();
+        if (improvementsNode.isArray()) {
+            improvementsNode.forEach(improvement -> {
+                String area = improvement.path("area").asText();
+                String detail = improvement.path("recommendation").asText();
+                improvements.add(String.format("%s: %s", area, detail));
+            });
+        }
+        return improvements.isEmpty() ?
+                Collections.singletonList("No specific improvements provided") :
+                improvements;
+    }
+
+    private void addAnalysisSection(StringBuilder fullAnalysis, JsonNode analysisNode, String key, String prefix) {
+        if (!analysisNode.path(key).isMissingNode()) {
+            fullAnalysis.append(prefix)
+                    .append(analysisNode.path(key).asText())
+                    .append("\n\n");
         }
     }
 
     private String createPromptForActivity(Activity activity) {
-        return String.format(
-                """
-                        Based on the following fitness activity data, provide recommendations in JSON format:
-                        
-                        Activity Details:
-                        - Type: %s
-                        - Duration: %d minutes
-                        - Calories Burned: %d
-                        - Start Time: %s
-                        - Additional Metrics: %s
-                        
-                        Please respond with ONLY a JSON object in this exact format:
-                        {
-                          "performanceAnalysis": "your analysis here",
-                          "improvementSuggestions": ["suggestion1", "suggestion2", "suggestion3"],
-                          "recommendedActivities": ["activity1", "activity2"],
-                          "tips": ["tip1", "tip2", "tip3"],
-                          "motivationalMessage": "encouraging message here"
-                        }
-                        
-                        Do not include any text outside the JSON object.""",
+        return String.format("""
+                Analyze this fitness activity and provide detailed recommendations in the following EXACT JSON format:
+                {
+                  "analysis": {
+                    "overall": "Overall analysis here",
+                    "pace": "Pace analysis here",
+                    "heartRate": "Heart rate analysis here",
+                    "caloriesBurned": "Calories analysis here"
+                  },
+                  "improvements": [
+                    {
+                      "area": "Area name",
+                      "recommendation": "Detailed recommendation"
+                    }
+                  ],
+                  "suggestions": [
+                    {
+                      "workout": "Workout name",
+                      "description": "Detailed workout description"
+                    }
+                  ],
+                  "safety": [
+                    "Safety point 1",
+                    "Safety point 2"
+                  ]
+                }
+
+                Analyze this activity:
+                Activity Type: %s
+                Duration: %d minutes
+                Calories Burned: %d
+                Start Time: %s
+                Additional Metrics: %s
+                
+                Provide detailed analysis focusing on performance, improvements, next workout suggestions, and safety guidelines.
+                Ensure the response follows the EXACT JSON format shown above.
+                """,
                 activity.getType() != null ? activity.getType().toString() : "Unknown",
                 activity.getDuration() != null ? activity.getDuration() : 0,
                 activity.getCaloriesBurned() != null ? activity.getCaloriesBurned() : 0,
                 activity.getStartTime() != null ? activity.getStartTime().toString() : "Not specified",
                 activity.getAdditionalMatrices() != null ? activity.getAdditionalMatrices().toString() : "None"
         );
-    }
-
-    private String parseGeminiResponse(String geminiResponse) {
-        try {
-            // Parse the Gemini API response to extract the actual content
-            JsonNode responseNode = objectMapper.readTree(geminiResponse);
-            JsonNode candidates = responseNode.get("candidates");
-
-            if (candidates != null && candidates.isArray() && !candidates.isEmpty()) {
-                JsonNode content = candidates.get(0).get("content");
-                if (content != null) {
-                    JsonNode parts = content.get("parts");
-                    if (parts != null && parts.isArray() && !parts.isEmpty()) {
-                        return parts.get(0).get("text").asText();
-                    }
-                }
-            }
-
-            // Fallback: return the original response if parsing fails
-            return geminiResponse;
-        } catch (Exception e) {
-            log.error("Error parsing Gemini response: {}", e.getMessage());
-            return geminiResponse;
-        }
-    }
-
-    private String createStructuredResponse(String aiContent) {
-        try {
-            // If AI returned proper JSON, pretty-print it
-            JsonNode jsonNode = objectMapper.readTree(aiContent);
-            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonNode);
-        } catch (Exception e) {
-            log.warn("AI response was not valid JSON, creating structured response");
-
-            Map<String, Object> structuredResponse = Map.of(
-                    "success", false,
-                    "rawResponse", aiContent,
-                    "error", "AI response was not in expected JSON format",
-                    "fallbackRecommendation", "Continue your fitness journey! Focus on consistency and gradual improvement."
-            );
-
-            try {
-                return objectMapper.writerWithDefaultPrettyPrinter()
-                        .writeValueAsString(structuredResponse);
-            } catch (Exception jsonError) {
-                log.error("Error creating fallback JSON: {}", jsonError.getMessage());
-                return "{\"success\":false,\"error\":\"Unable to process recommendation\"}";
-            }
-        }
-    }
-
-
-    // Alternative method if you need synchronous response (blocking)
-    public String generateRecommendationSync(Activity activity) {
-        String prompt = createPromptForActivity(activity);
-        log.info("Generated prompt for activity {}: {}", activity.getId(), prompt);
-
-        try {
-            String response = geminiService.getAnswer(prompt);
-            String parsedResponse = parseGeminiResponse(response);
-            String structuredResponse = createStructuredResponse(parsedResponse);
-            log.info("Response from AI for activity {}: {}", activity.getId(), structuredResponse);
-            return structuredResponse;
-        } catch (Exception e) {
-            log.error("Error getting AI response for activity {}: {}", activity.getId(), e.getMessage());
-            return "Unable to generate recommendations at this time. Please try again later.";
-        }
     }
 }

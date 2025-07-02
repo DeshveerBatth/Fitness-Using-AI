@@ -17,9 +17,9 @@ public class ActivityMessageListener {
         log.info("Received activity for processing: {}", activity.getId());
 
         // Use the synchronous method instead
-        String recommendation = aiService.generateRecommendationSync(activity);
+        String recommendation = String.valueOf(aiService.generateRecommendationSync(activity));
         log.info("Generated Recommendation for activity {}:\n{}", activity.getId(), recommendation);
-
+        recommendationRepository.save(recommendation);
 
         // Here you can save to database, send to another queue, etc.
     }

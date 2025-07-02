@@ -19,4 +19,6 @@ public class Activity {
     private Map<String, Object> additionalMatrices;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    public Map<String, Object> getAdditionalMetrics;
 }
