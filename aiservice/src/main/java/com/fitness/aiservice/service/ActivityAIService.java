@@ -118,7 +118,7 @@ public class ActivityAIService {
             return Recommendation.builder()
                     .activityId(activity.getId())
                     .userId(activity.getUserId())
-                    .activityType(String.valueOf(activity.getType()))
+                    .activityType(activity.getType() != null ? activity.getType().toString() : "Unknown") // Fixed
                     .recommendation(fullAnalysis.toString().trim())
                     .improvements(improvements)
                     .suggestions(suggestions)
@@ -136,7 +136,7 @@ public class ActivityAIService {
         return Recommendation.builder()
                 .activityId(activity.getId())
                 .userId(activity.getUserId())
-                .activityType(String.valueOf(activity.getType()))
+                .activityType(activity.getType() != null ? activity.getType().toString() : "Unknown") // Fixed
                 .recommendation("Unable to generate detailed analysis. Please try again later.")
                 .improvements(Collections.singletonList("Continue with your current routine"))
                 .suggestions(Collections.singletonList("Consider consulting a fitness professional"))
@@ -155,7 +155,7 @@ public class ActivityAIService {
                     "success", true,
                     "activityId", recommendation.getActivityId(),
                     "userId", recommendation.getUserId(),
-                    "activityType", recommendation.getActivityType().toString(),
+                    "activityType", recommendation.getActivityType(), // Fixed: removed .toString()
                     "analysis", recommendation.getRecommendation(),
                     "improvements", recommendation.getImprovements(),
                     "suggestions", recommendation.getSuggestions(),
