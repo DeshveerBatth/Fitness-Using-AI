@@ -24,9 +24,11 @@ public class ActivityAIService {
         String prompt = createPromptForActivity(activity);
         log.info("Generated prompt for activity {}: {}", activity.getId(), prompt);
 
-        return geminiService.getAnswer(prompt)
-                .map(this::parseGeminiResponse)
-                .map(this::createStructuredResponse)
+        return Mono.fromCallable(() -> {
+                    String response = geminiService.getAnswer(prompt);
+                    String parsedResponse = parseGeminiResponse(response);
+                    return createStructuredResponse(parsedResponse);
+                })
                 .doOnSuccess(response -> log.info("Structured response for activity {}: {}", activity.getId(), response))
                 .doOnError(error -> log.error("Error getting AI response for activity {}: {}", activity.getId(), error.getMessage()));
     }
@@ -112,7 +114,7 @@ public class ActivityAIService {
         log.info("Generated prompt for activity {}: {}", activity.getId(), prompt);
 
         try {
-            String response = geminiService.getAnswer(prompt).block();
+            String response = geminiService.getAnswer(prompt);
             String parsedResponse = parseGeminiResponse(response);
             String structuredResponse = createStructuredResponse(parsedResponse);
             log.info("Response from AI for activity {}: {}", activity.getId(), structuredResponse);
