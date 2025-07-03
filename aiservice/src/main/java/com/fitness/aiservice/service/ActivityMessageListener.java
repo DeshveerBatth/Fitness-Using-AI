@@ -20,7 +20,6 @@ public class ActivityMessageListener {
         log.info("Received activity for processing: {}", activity.getId());
 
         try {
-            // Generate recommendation using synchronous method
             Recommendation recommendation = aiService.generateRecommendationSync(activity);
             log.info("Generated Recommendation for activity {}: {}",
                     activity.getId(), recommendation.getRecommendation());
