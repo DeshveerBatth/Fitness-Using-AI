@@ -1,40 +1,5 @@
 spring:
   application:
     name: activity-service
-  data:
-    mongodb:
-      uri: mongodb://localhost:27017/fitnessactivity
-      database: fitnessactivity
-  rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
-
-logging:
-  level:
-    com.fitness.activityservice: DEBUG
-
-server:
-  port: 8082
-
-eureka:
-  client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-  instance:
-    hostname: localhost
-    prefer-ip-address: true
-    instance-id: ${spring.application.name}:${server.port}
-
-rabbitmq:
-  exchange:
-    name: fitness.exchange
-  queue:
-    name: activity.queue
-  routing:
-    name: activity.tracking
+  config:
+    import: optional:configserver:http://localhost:8888
