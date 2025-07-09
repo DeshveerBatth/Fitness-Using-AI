@@ -1,5 +1,6 @@
 package com.fitness.gateway.user;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -12,11 +13,15 @@ public class RegisterRequest {
     private String email;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must have ar least six characters")
+    @Size(min = 6, message = "Password must have at least six characters")
     private String password;
 
+    @JsonProperty("keycloakId")  // This will accept both "keycloakId" and "keycloak_id"
     private String keycloakId;
-    private String firstName;
-    private String lastName;
 
+    @JsonProperty("firstName")
+    private String firstName;
+
+    @JsonProperty("lastName")
+    private String lastName;
 }

@@ -20,49 +20,49 @@ public class KeycloakSyncFilter implements WebFilter {
     private final UserService userService;
 
     @Override
-    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain){
+    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String token = exchange.getRequest().getHeaders().getFirst("Authorization");
         String userId = exchange.getRequest().getHeaders().getFirst("X-User-ID");
 
-        // Only parse token if we don't have userId and token exists
-        if(userId == null && token != null){
-            RegisterRequest registerRequest = getUserDetails(token);
-            if(registerRequest != null){
-                userId = registerRequest.getKeycloakId();
-            }
+        RegisterRequest registerRequest = getUserDetails(token);
+
+        if (userId == null && registerRequest != null) {
+            userId = registerRequest.getKeycloakId();
         }
 
-        if(userId != null && token != null){
+        if (userId != null && token != null) {
             String finalUserId = userId;
             return userService.validateUser(userId)
-                    .flatMap(exist ->{
-                        if(!exist){
-                            // Parse token again only if we need to register
-                            RegisterRequest registerRequest = getUserDetails(token);
-                            if(registerRequest != null){
+                    .flatMap(exist -> {
+                        if (!exist) {
+                            // Register User
+                            if (registerRequest != null) {
                                 return userService.registerUser(registerRequest)
+                                        .doOnError(error -> log.error("User registration failed: {}", error.getMessage()))
                                         .then(Mono.empty());
+                            } else {
+                                return Mono.empty();
                             }
-                            return Mono.empty();
-                        } else{
-                            log.info("User already exists, Skipping sync. ");
+                        } else {
+                            log.info("User already exists, skipping sync.");
                             return Mono.empty();
                         }
                     })
-                    .then(Mono.defer(() ->{
+                    .then(Mono.defer(() -> {
                         ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
                                 .header("X-User-ID", finalUserId)
                                 .build();
                         return chain.filter(exchange.mutate().request(mutatedRequest).build());
-                    }));
+                    }))
+                    .doOnError(error -> log.error("Error in KeycloakSyncFilter: {}", error.getMessage()));
         }
 
         return chain.filter(exchange);
     }
 
     private RegisterRequest getUserDetails(String token) {
-        try{
-            if(token == null || token.trim().isEmpty()){
+        try {
+            if (token == null || token.trim().isEmpty()) {
                 return null;
             }
 
@@ -76,10 +76,13 @@ public class KeycloakSyncFilter implements WebFilter {
             registerRequest.setPassword("abc123");
             registerRequest.setFirstName(claims.getStringClaim("given_name"));
             registerRequest.setLastName(claims.getStringClaim("family_name"));
+
             return registerRequest;
-        } catch(Exception e){
+        } catch (Exception e) {
             log.error("Error parsing JWT token: {}", e.getMessage());
             return null;
         }
     }
+
+
 }
