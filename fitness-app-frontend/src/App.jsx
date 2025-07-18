@@ -11,7 +11,7 @@ import ActivityList from './components/ActivityList';
 const ActivitiesPage = () => {
   return (
     <Box component="section" sx={{ p: 2, border: '1px dashed grey' }}>
-      <ActivityForm onActivitiesAdded={() => window.location.reload()} />
+      <ActivityForm onActivitiesAdded={() => {/* Do nothing or show success message */}} />
       <ActivityList />
     </Box>
   );
