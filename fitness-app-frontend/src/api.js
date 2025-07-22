@@ -99,10 +99,37 @@ export const addActivity = (activity) => {
     return api.post('/activities', activity);
 };
 
-export const getActivityDetail = (id) => {
+export const getActivityDetail = async (id) => {
     console.log('🔍 Getting activity detail for ID:', id);
-    return api.get(`/recommendations/activity/${id}`);
+    
+    try {
+        // Get basic activity details
+        const activityResponse = await api.get(`/activities/${id}`);
+        
+        // Try to get recommendations (optional)
+        let recommendationData = {};
+        try {
+            const recommendationResponse = await api.get(`/recommendations/activity/${id}`);
+            recommendationData = recommendationResponse.data;
+        } catch (recError) {
+            console.warn('⚠️ Could not fetch recommendations:', recError);
+            // Don't fail the whole request if recommendations fail
+        }
+        
+        // Combine the data
+        return {
+            ...activityResponse,
+            data: {
+                ...activityResponse.data,
+                ...recommendationData
+            }
+        };
+    } catch (error) {
+        console.error('❌ Error fetching activity detail:', error);
+        throw error;
+    }
 };
+
 
 // Helper function to test API connectivity
 export const testConnection = async () => {
